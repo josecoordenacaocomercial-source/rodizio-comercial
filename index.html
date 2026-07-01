@@ -117,6 +117,7 @@ tr.row-novo{background:#fffbf0;}
 .pb-enc{background:#f0f1f5;color:var(--muted);}
 .pb-file{background:#f0f1f5;color:var(--ink-2);}
 .pb-troca{background:#fde9d9;color:var(--orange);}
+.pb-edit{background:#e8eef7;color:#2c5282;}
 .filter-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .filter-row select{border:1.5px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;background:#fff;cursor:pointer;}
 
@@ -389,6 +390,36 @@ tr.row-novo{background:#fffbf0;}
   </div>
 </div>
 
+<!-- EDITAR LEAD MODAL -->
+<div id="edit-ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <h3 style="font-size:19px;font-weight:800;margin-bottom:6px;">✏️ Editar Lead</h3>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px;">Corrija os dados registrados por engano.</div>
+    <div class="field">
+      <label>Prospector</label>
+      <select id="ed-prosp" style="width:100%;border:1.5px solid var(--line);border-radius:9px;padding:11px 14px;font-size:15px;outline:none;">
+        ${''}
+      </select>
+    </div>
+    <div class="field">
+      <label>Nome da Empresa</label>
+      <input type="text" id="ed-emp" placeholder="Razão Social">
+    </div>
+    <div class="field">
+      <label>CNPJ</label>
+      <input type="text" id="ed-cnpj" placeholder="00.000.000/0000-00" maxlength="18" oninput="this.value=fmtCNPJ(this.value)">
+    </div>
+    <div class="field">
+      <label>Gerente responsável</label>
+      <select id="ed-gerente" style="width:100%;border:1.5px solid var(--line);border-radius:9px;padding:11px 14px;font-size:15px;outline:none;"></select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ok" onclick="confirmarEdicao()">✓ Salvar Correção</button>
+      <button class="btn-cancel" onclick="fecharEditarLead()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL      = "https://ktbypvrowutxpqaslvnv.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_90GWX3xHbvim7_2M3Kp1pw_oZ2-gn9-";
@@ -466,7 +497,7 @@ function pipeRows(items, showProsp){
       <td style="font-size:13px">${prazo}</td>
       <td style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
         ${p.arquivo_url?`<button class="pb pb-file" onclick="window.open('${p.arquivo_url}','_blank')">📄 Arquivo</button>`:''}
-        ${!enc?`<button class="pb pb-av" onclick="avancarLead(${p.id})">+15d</button><button class="pb pb-enc" onclick="encerrarLead(${p.id})">✓ Encerrar</button>${showProsp?`<button class="pb pb-troca" onclick="abrirTrocaGerente(${p.id},'${p.empresa.replace(/'/g,"\\'")}','${p.gerente_id}')">🔁 Trocar gerente</button>`:''}`:''}
+        ${!enc?`<button class="pb pb-av" onclick="avancarLead(${p.id})">+15d</button><button class="pb pb-enc" onclick="encerrarLead(${p.id})">✓ Encerrar</button>${showProsp?`<button class="pb pb-troca" onclick="abrirTrocaGerente(${p.id},'${p.empresa.replace(/'/g,"\\'")}','${p.gerente_id}')">🔁 Trocar gerente</button><button class="pb pb-edit" onclick='abrirEditarLead(${JSON.stringify(p)})'>✏️ Editar</button>`:''}`:''}
       </td>
     </tr>`;
   }).join('')}</tbody></table>`;
@@ -660,6 +691,30 @@ async function confirmarEnvio(){
 
 // ─── AÇÕES ───
 function selProsp(p){curProsp=p;document.getElementById('prosp-row').innerHTML=PROSPECTORS.map(x=>`<button class="chip ${x===curProsp?'active':''}" onclick="selProsp('${x}')">${x}</button>`).join('');}
+let editLeadId=null;
+function abrirEditarLead(p){
+  editLeadId=p.id;
+  document.getElementById('ed-prosp').innerHTML=PROSPECTORS.map(x=>`<option value="${x}" ${x===p.prospector?'selected':''}>${x}</option>`).join('');
+  document.getElementById('ed-emp').value=p.empresa||'';
+  document.getElementById('ed-cnpj').value=p.cnpj||'';
+  const selG=document.getElementById('ed-gerente');
+  selG.innerHTML=S.gerentes.map(g=>`<option value="${g.id}" ${String(g.id)===String(p.gerente_id)?'selected':''}>${g.nome}</option>`).join('');
+  document.getElementById('edit-ov').style.display='flex';
+}
+function fecharEditarLead(){document.getElementById('edit-ov').style.display='none';editLeadId=null;}
+async function confirmarEdicao(){
+  const prospector=document.getElementById('ed-prosp').value;
+  const empresa=document.getElementById('ed-emp').value.trim();
+  const cnpj=document.getElementById('ed-cnpj').value.trim();
+  const gerenteId=Number(document.getElementById('ed-gerente').value);
+  if(!empresa){alert('Nome da empresa é obrigatório.');return;}
+  const pin=prompt("Senha admin para salvar a correção:");
+  if(pin===null)return;
+  const {error}=await sb.rpc('editar_lead',{p_lead_id:editLeadId,p_prospector:prospector,p_empresa:empresa,p_cnpj:cnpj||null,p_novo_gerente_id:gerenteId,p_senha:pin.trim()});
+  if(error){alert(error.message.includes('SENHA_INCORRETA')?'Senha incorreta.':error.message);return;}
+  fecharEditarLead();
+  await load();
+}
 let trocaLeadId=null;
 function abrirTrocaGerente(leadId, empresa, gerenteAtualId){
   trocaLeadId=leadId;
