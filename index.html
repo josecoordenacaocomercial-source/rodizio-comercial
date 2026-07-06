@@ -248,16 +248,6 @@ tr.row-novo{background:#fffbf0;}
         <div class="panel-title">Leads por prospector <span id="hist-total" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)"></span></div>
         <div class="stats" id="stats-row"></div>
       </div>
-      <div class="panel">
-        <div class="panel-title">
-          Histórico de envios
-          <span style="display:flex;gap:8px;">
-            <button class="smallbtn" onclick="exportarCSV()">⬇ Exportar CSV</button>
-            <button class="smallbtn danger" onclick="apagarHistorico()">🔒 Apagar histórico (admin)</button>
-          </span>
-        </div>
-        <div class="logbox" id="hist-box"><div class="empty">Nenhum envio ainda.</div></div>
-      </div>
     </div>
 
     <!-- ACOMPANHAMENTO -->
@@ -530,10 +520,6 @@ function renderNormal(){
   const tot=S.stats.reduce((a,x)=>a+Number(x.total),0);
   document.getElementById('hist-total').textContent=`total: ${tot}`;
   document.getElementById('stats-row').innerHTML=PROSPECTORS.map(p=>{const s=S.stats.find(x=>x.prospector===p);return`<div class="stat"><div class="sname">${p}</div><div class="snum">${s?Number(s.total):0}</div><div class="slbl">leads</div></div>`;}).join('');
-  // history
-  const hb=document.getElementById('hist-box');
-  if(!S.envios.length){hb.innerHTML='<div class="empty">Nenhum envio ainda.</div>';}
-  else hb.innerHTML=`<table><thead><tr><th>Prospector</th><th>Empresa</th><th>CNPJ</th><th>Gerente</th><th>Arquivo</th><th>Quando</th></tr></thead><tbody>${S.envios.map(h=>`<tr><td class="cPP">${h.prospector}</td><td class="cEE">${h.empresa||'—'}</td><td class="cTT">${h.cnpj||'—'}</td><td class="cGG">${h.gerente}</td><td>${h.arquivo_url?`<a href="${h.arquivo_url}" target="_blank" style="color:var(--gold);font-size:12px;font-weight:600;">📄 Ver</a>`:'—'}</td><td class="cTT">${new Date(h.criado_em).toLocaleString('pt-BR')} · ${ago(h.criado_em)}</td></tr>`).join('')}</tbody></table>`;
   // pipeline
   renderPipeline();
   // manager select grid
