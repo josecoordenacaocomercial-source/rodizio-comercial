@@ -253,10 +253,6 @@ tr.row-nconv{background:#fdf1f0;}
         <div class="grid" id="mgr-grid"></div>
         <div class="foot"><button class="admin-btn" onclick="zerarGerentes()">🔒 Zerar gerentes (admin)</button></div>
       </div>
-      <div class="panel">
-        <div class="panel-title">Leads por prospector <span id="hist-total" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)"></span></div>
-        <div class="stats" id="stats-row"></div>
-      </div>
     </div>
 
     <!-- ACOMPANHAMENTO -->
@@ -586,10 +582,6 @@ function renderNormal(){
         <button class="tog" onclick="toggleMgr(${g.id})">${g.ativo?'⏸':'▶'}</button>
       </div>
     </div>`).join('');
-  // stats
-  const tot=S.stats.reduce((a,x)=>a+Number(x.total),0);
-  document.getElementById('hist-total').textContent=`total: ${tot}`;
-  document.getElementById('stats-row').innerHTML=PROSPECTORS.map(p=>{const s=S.stats.find(x=>x.prospector===p);return`<div class="stat"><div class="sname">${p}</div><div class="snum">${s?Number(s.total):0}</div><div class="slbl">leads</div></div>`;}).join('');
   // pipeline
   renderPipeline();
   // manager select grid
