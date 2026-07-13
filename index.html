@@ -111,10 +111,18 @@ tr.row-novo{background:#fffbf0;}
 .pill-aviso{background:var(--orange-bg);color:var(--orange);}
 .pill-alerta{background:var(--red-bg);color:var(--red);}
 .pill-enc{background:#f0f1f5;color:var(--muted);}
+.pill-conv{background:var(--green-bg);color:var(--green);font-weight:800;}
+.pill-nconv{background:var(--red-bg);color:var(--red);font-weight:800;}
+.pill-andamento{background:#eef0f4;color:var(--muted);}
+tr.row-conv{background:#f0faf4;}
+tr.row-nconv{background:#fdf1f0;}
 .pill-novo{background:#fff3cd;color:#856404;border:1px solid #ffc107;}
 .pb{border:none;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .pb-av{background:var(--green-bg);color:var(--green);}
 .pb-enc{background:#f0f1f5;color:var(--muted);}
+.pb-venda{background:var(--green);color:#fff;}
+.pb-perda{background:var(--red);color:#fff;}
+.pb-reabrir{background:#eef0f4;color:var(--ink-2);}
 .pb-file{background:#f0f1f5;color:var(--ink-2);}
 .pb-troca{background:#fde9d9;color:var(--orange);}
 .pb-edit{background:#e8eef7;color:#2c5282;}
@@ -223,6 +231,7 @@ tr.row-novo{background:#fffbf0;}
     <div class="tabs">
       <button class="tab active" id="t-dist" onclick="showTab('dist')">📊 Distribuição</button>
       <button class="tab" id="t-pipe" onclick="showTab('pipe')">📋 Acompanhamento <span class="badget" id="badge-alerta" style="display:none">0</span></button>
+      <button class="tab" id="t-dash" onclick="showTab('dash')">📈 Dashboard</button>
       <button class="tab gtab" id="t-mgr" onclick="showTab('mgr')">👤 Sou Gerente <span class="badget gold" id="badge-novo" style="display:none"></span></button>
     </div>
 
@@ -257,8 +266,15 @@ tr.row-novo{background:#fffbf0;}
           Pipeline · acompanhamento por empresa
           <div class="filter-row">
             <select id="f-status" onchange="renderPipeline()"><option value="ativo">Ativos</option><option value="todos">Todos</option><option value="encerrado">Encerrados</option></select>
+            <select id="f-conv" onchange="renderPipeline()">
+              <option value="">Todos os resultados</option>
+              <option value="em_andamento">Em andamento</option>
+              <option value="convertida">Convertida (venda)</option>
+              <option value="nao_convertida">Não convertida</option>
+            </select>
             <select id="f-gerente" onchange="renderPipeline()"><option value="">Todos os gerentes</option></select>
             <select id="f-prosp" onchange="renderPipeline()"><option value="">Todos os prospectores</option></select>
+            <input type="month" id="f-mes" onchange="renderPipeline()" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;">
           </div>
         </div>
         <div class="pipe-wrap" id="pipe-wrap"><div class="empty">Nenhum lead no pipeline ainda.</div></div>
@@ -266,6 +282,34 @@ tr.row-novo{background:#fffbf0;}
           <button class="smallbtn" onclick="exportarPipelineCSV()">⬇ Exportar planilha completa</button>
           <button class="admin-btn" onclick="zerarPipeline()">🔒 Zerar pipeline (admin)</button>
         </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD DE CONVERSÃO -->
+    <div id="v-dash" style="display:none">
+      <div class="panel">
+        <div class="panel-title">
+          Taxa de conversão · mês corrente
+          <div class="filter-row">
+            <select id="dash-mes" onchange="renderDashboard()"></select>
+          </div>
+        </div>
+        <div class="stats" id="dash-conv-row" style="grid-template-columns:repeat(4,1fr);"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Total em aberto por gerente <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)">onde está empacado</span></div>
+        <div class="pipe-wrap" id="dash-aberto-wrap"><div class="empty">Sem dados.</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Tempo médio até finalização <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)">dias corridos, convertida ou não</span></div>
+        <div class="pipe-wrap" id="dash-tempo-wrap"><div class="empty">Sem dados.</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Histórico mês a mês <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)">comparação por gerente</span></div>
+        <div class="pipe-wrap" id="dash-hist-wrap"><div class="empty">Sem dados.</div></div>
       </div>
     </div>
 
@@ -411,10 +455,26 @@ tr.row-novo{background:#fffbf0;}
   </div>
 </div>
 
+<!-- FINALIZAR LEAD MODAL (venda / não convertida) -->
+<div id="fin-ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <h3 id="fin-titulo" style="font-size:19px;font-weight:800;margin-bottom:6px;">Marcar resultado</h3>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px;">Empresa: <strong id="fin-empresa" style="color:var(--ink)"></strong></div>
+    <div class="field">
+      <label>Observação <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+      <textarea id="fin-obs" rows="3" placeholder="Ex: cliente fechou com concorrente / aprovado com taxa X..." style="width:100%;border:1.5px solid var(--line);border-radius:9px;padding:11px 14px;font-size:14px;outline:none;resize:vertical;font-family:inherit;"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ok" id="fin-btn-ok" onclick="confirmarFinalizar()">Confirmar</button>
+      <button class="btn-cancel" onclick="fecharFinalizar()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL      = "https://ktbypvrowutxpqaslvnv.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_90GWX3xHbvim7_2M3Kp1pw_oZ2-gn9-";
-const PROSPECTORS = ["Kaio","Alycia","Julio","Bruno","Grace"];
+const PROSPECTORS = ["Kaio","Alycia","Julio","Bruno","Grayce"];
 const LS_MGR  = "solo_mgr_v5";
 const LS_SEEN = "solo_seen_";
 
@@ -464,22 +524,28 @@ function novosDoGerente(nome){const s=Number(localStorage.getItem(LS_SEEN+nome)|
 function pipeRows(items, showProsp){
   if(!items.length)return'<div class="empty">Nenhum lead encontrado.</div>';
   return`<table><thead><tr>
-    <th>Status</th><th>Empresa</th><th>CNPJ</th>
+    <th>Status</th><th>Conversão</th><th>Empresa</th><th>CNPJ</th>
     ${showProsp?'<th>Prospector</th>':''}
     <th>Data</th><th>Dias</th><th>Prazo</th><th>Ações</th>
   </tr></thead><tbody>${items.map(p=>{
     const d=dias(p.criado_em),pr=p.prazo_dias||30,rest=pr-d,enc=p.status==='encerrado';
+    const sc=p.status_conversao||'em_andamento';
     const seen=Number(localStorage.getItem(LS_SEEN+(p.gerente))||0);
     const isNovo=!enc&&new Date(p.criado_em).getTime()>seen&&!showProsp;
     let rCls='row-ok';
-    if(enc)rCls='row-enc';
+    if(sc==='convertida')rCls='row-conv';
+    else if(sc==='nao_convertida')rCls='row-nconv';
+    else if(enc)rCls='row-enc';
     else if(isNovo)rCls='row-novo';
     else if(d>=pr)rCls='row-alerta';
     else if(rest<=5)rCls='row-aviso';
     const badge=enc?`<span class="pill pill-enc">Encerrado</span>`:isNovo?`<span class="pill pill-novo">✨ NOVO</span>`:d>=pr?`<span class="pill pill-alerta">⚠ Vencido</span>`:rest<=5?`<span class="pill pill-aviso">Atenção</span>`:`<span class="pill pill-ok">Em dia</span>`;
+    const convBadge=sc==='convertida'?`<span class="pill pill-conv">✓ Venda</span>`:sc==='nao_convertida'?`<span class="pill pill-nconv">✗ Perdida</span>`:`<span class="pill pill-andamento">Em andamento</span>`;
     const prazo=enc?'<span style="color:var(--muted);font-size:12px">—</span>':d>=pr?`<strong style="color:var(--red)">${Math.abs(rest)}d vencido</strong>`:`${pr}d · <span style="color:var(--muted)">${rest}d restam</span>`;
+    const finalizada=sc==='convertida'||sc==='nao_convertida';
     return`<tr class="${rCls}">
       <td>${badge}</td>
+      <td>${convBadge}${p.observacao_finalizacao?`<div style="font-size:11px;color:var(--muted);margin-top:3px;max-width:160px;">${p.observacao_finalizacao}</div>`:''}</td>
       <td class="cEE"><strong>${p.empresa}</strong></td>
       <td class="cTT">${p.cnpj||'—'}</td>
       ${showProsp?`<td class="cPP">${p.prospector}</td>`:''}
@@ -488,7 +554,11 @@ function pipeRows(items, showProsp){
       <td style="font-size:13px">${prazo}</td>
       <td style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
         ${p.arquivo_url?`<button class="pb pb-file" onclick="window.open('${p.arquivo_url}','_blank')">📄 Arquivo</button>`:''}
-        ${!enc?`<button class="pb pb-av" onclick="avancarLead(${p.id})">+15d</button><button class="pb pb-enc" onclick="encerrarLead(${p.id})">✓ Encerrar</button>${showProsp?`<button class="pb pb-troca" onclick="abrirTrocaGerente(${p.id},'${p.empresa.replace(/'/g,"\\'")}','${p.gerente_id}')">🔁 Trocar gerente</button><button class="pb pb-edit" onclick='abrirEditarLead(${JSON.stringify(p)})'>✏️ Editar</button><button class="pb pb-del" onclick="confirmarApagarLead(${p.id},'${p.empresa.replace(/'/g,"\\'")}')">🗑️ Apagar</button>`:''}`:''}
+        ${!finalizada?`<button class="pb pb-venda" onclick="abrirFinalizar(${p.id},'${p.empresa.replace(/'/g,"\\'")}','convertida')">✓ Marcar Venda</button><button class="pb pb-perda" onclick="abrirFinalizar(${p.id},'${p.empresa.replace(/'/g,"\\'")}','nao_convertida')">✗ Não Convertida</button><button class="pb pb-av" onclick="avancarLead(${p.id})">+15d</button>`:''}
+        ${finalizada&&showProsp?`<button class="pb pb-reabrir" onclick="confirmarReabrir(${p.id})">↺ Reabrir</button>`:''}
+        ${!enc&&!finalizada?`<button class="pb pb-enc" onclick="encerrarLead(${p.id})">✓ Encerrar</button>`:''}
+        ${showProsp&&!finalizada?`<button class="pb pb-troca" onclick="abrirTrocaGerente(${p.id},'${p.empresa.replace(/'/g,"\\'")}','${p.gerente_id}')">🔁 Trocar gerente</button><button class="pb pb-edit" onclick='abrirEditarLead(${JSON.stringify(p)})'>✏️ Editar</button>`:''}
+        ${showProsp?`<button class="pb pb-del" onclick="confirmarApagarLead(${p.id},'${p.empresa.replace(/'/g,"\\'")}')">🗑️ Apagar</button>`:''}
       </td>
     </tr>`;
   }).join('')}</tbody></table>`;
@@ -544,8 +614,10 @@ function renderNormal(){
 
 function renderPipeline(){
   const fSt=document.getElementById('f-status')?.value||'ativo';
+  const fConv=document.getElementById('f-conv')?.value||'';
   const fGer=document.getElementById('f-gerente')?.value||'';
   const fPro=document.getElementById('f-prosp')?.value||'';
+  const fMes=document.getElementById('f-mes')?.value||'';
   const sel1=document.getElementById('f-gerente');
   if(sel1){const cur=sel1.value,gers=[...new Set(S.pipeline.map(p=>p.gerente))].sort();sel1.innerHTML='<option value="">Todos os gerentes</option>'+gers.map(g=>`<option value="${g}"${g===cur?' selected':''}>${g}</option>`).join('');}
   const sel2=document.getElementById('f-prosp');
@@ -553,9 +625,65 @@ function renderPipeline(){
   let items=S.pipeline;
   if(fSt==='ativo')items=items.filter(p=>p.status!=='encerrado');
   if(fSt==='encerrado')items=items.filter(p=>p.status==='encerrado');
+  if(fConv)items=items.filter(p=>(p.status_conversao||'em_andamento')===fConv);
   if(fGer)items=items.filter(p=>p.gerente===fGer);
   if(fPro)items=items.filter(p=>p.prospector===fPro);
+  if(fMes)items=items.filter(p=>(p.mes_referencia||'')===fMes);
   document.getElementById('pipe-wrap').innerHTML=pipeRows(items,true);
+}
+
+// ─── DASHBOARD DE CONVERSÃO ───
+async function renderDashboard(){
+  const [conv,aberto,tempo]=await Promise.all([
+    sb.rpc('dashboard_conversao_mensal'),
+    sb.rpc('dashboard_em_aberto'),
+    sb.rpc('dashboard_tempo_medio')
+  ]);
+  const dadosConv=conv.data||[];
+  const dadosAberto=aberto.data||[];
+  const dadosTempo=tempo.data||[];
+
+  // popula filtro de mês
+  const meses=[...new Set(dadosConv.map(x=>x.mes_referencia))].sort().reverse();
+  const selMes=document.getElementById('dash-mes');
+  const mesAtual=new Date().toISOString().slice(0,7);
+  if(selMes && !selMes.dataset.filled){
+    selMes.innerHTML=meses.map(m=>`<option value="${m}" ${m===mesAtual?'selected':''}>${formatMes(m)}</option>`).join('')||`<option value="${mesAtual}">${formatMes(mesAtual)}</option>`;
+    selMes.dataset.filled='1';
+  }
+  const mesEscolhido=selMes?.value||mesAtual;
+
+  // Cards de conversão do mês escolhido, agrupado por gerente
+  const doMes=dadosConv.filter(x=>x.mes_referencia===mesEscolhido);
+  const porGerente={};
+  doMes.forEach(x=>{
+    if(!porGerente[x.gerente]) porGerente[x.gerente]={conv:0,nconv:0,total:0};
+    porGerente[x.gerente].conv+=Number(x.convertidas);
+    porGerente[x.gerente].nconv+=Number(x.nao_convertidas);
+    porGerente[x.gerente].total+=Number(x.total_finalizadas);
+  });
+  const gerentesList=Object.keys(porGerente).sort();
+  document.getElementById('dash-conv-row').innerHTML = gerentesList.length ? gerentesList.map(g=>{
+    const d=porGerente[g];
+    const taxa=d.total>0?Math.round(100*d.conv/d.total):0;
+    return`<div class="stat"><div class="sname">${g}</div><div class="snum" style="color:${taxa>=50?'var(--green)':taxa>0?'var(--orange)':'var(--muted)'}">${taxa}%</div><div class="slbl">${d.conv} venda${d.conv!==1?'s':''} / ${d.total} finalizada${d.total!==1?'s':''}</div></div>`;
+  }).join('') : '<div class="empty">Nenhuma finalização neste mês ainda.</div>';
+
+  // Em aberto por gerente
+  document.getElementById('dash-aberto-wrap').innerHTML = dadosAberto.length ? `<table><thead><tr><th>Gerente</th><th>Total em aberto</th><th>Mais antigo</th></tr></thead><tbody>${dadosAberto.map(x=>`<tr><td class="cGG">${x.gerente}</td><td><span class="pill ${x.total_aberto>=5?'pill-alerta':'pill-ok'}">${x.total_aberto}</span></td><td class="cTT">${x.mais_antigo_dias}d</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sem leads em aberto.</div>';
+
+  // Tempo médio
+  document.getElementById('dash-tempo-wrap').innerHTML = dadosTempo.length ? `<table><thead><tr><th>Gerente</th><th>Dias médios até finalizar</th><th>Total finalizadas</th></tr></thead><tbody>${dadosTempo.map(x=>`<tr><td class="cGG">${x.gerente}</td><td><strong>${x.dias_medio}d</strong></td><td class="cTT">${x.total_finalizadas}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sem dados suficientes.</div>';
+
+  // Histórico mês a mês
+  const mesesOrdenados=[...new Set(dadosConv.map(x=>x.mes_referencia))].sort().reverse();
+  document.getElementById('dash-hist-wrap').innerHTML = dadosConv.length ? `<table><thead><tr><th>Mês</th><th>Gerente</th><th>Prospector</th><th>Convertidas</th><th>Não convertidas</th><th>Taxa</th></tr></thead><tbody>${mesesOrdenados.flatMap(m=>dadosConv.filter(x=>x.mes_referencia===m)).map(x=>`<tr><td class="cTT">${formatMes(x.mes_referencia)}</td><td class="cGG">${x.gerente}</td><td class="cPP">${x.prospector}</td><td style="color:var(--green);font-weight:700;">${x.convertidas}</td><td style="color:var(--red);font-weight:700;">${x.nao_convertidas}</td><td><span class="pill ${x.taxa_conversao>=50?'pill-ok':x.taxa_conversao>0?'pill-aviso':'pill-enc'}">${x.taxa_conversao}%</span></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Sem histórico ainda.</div>';
+}
+function formatMes(m){
+  if(!m) return '—';
+  const [y,mo]=m.split('-');
+  const nomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${nomes[Number(mo)-1]}/${y}`;
 }
 
 // ─── MANAGER MODE ───
@@ -592,11 +720,12 @@ function renderMgrFull(){
 
 // ─── TABS ───
 function showTab(t){
-  ['dist','pipe','mgr'].forEach(x=>{
+  ['dist','pipe','dash','mgr'].forEach(x=>{
     document.getElementById('v-'+x).style.display=x===t?'':'none';
     const btn=document.getElementById('t-'+x);
     btn.className='tab'+(x==='mgr'?' gtab':'')+(x===t?' active':'');
   });
+  if(t==='dash') renderDashboard();
 }
 
 // ─── PIN MODAL ───
@@ -683,6 +812,32 @@ async function confirmarApagarLead(id, empresa){
   const pin=prompt("Senha admin para apagar:");
   if(pin===null)return;
   const {error}=await sb.rpc('apagar_lead',{p_lead_id:id,p_senha:pin.trim()});
+  if(error){alert(error.message.includes('SENHA_INCORRETA')?'Senha incorreta.':error.message);return;}
+  await load();
+}
+let finLeadId=null, finStatus=null;
+function abrirFinalizar(id, empresa, status){
+  finLeadId=id; finStatus=status;
+  document.getElementById('fin-titulo').textContent=status==='convertida'?'✓ Marcar como Venda':'✗ Marcar como Não Convertida';
+  document.getElementById('fin-empresa').textContent=empresa;
+  document.getElementById('fin-obs').value='';
+  const btn=document.getElementById('fin-btn-ok');
+  btn.style.background=status==='convertida'?'var(--green)':'var(--red)';
+  document.getElementById('fin-ov').style.display='flex';
+}
+function fecharFinalizar(){document.getElementById('fin-ov').style.display='none';finLeadId=null;finStatus=null;}
+async function confirmarFinalizar(){
+  const obs=document.getElementById('fin-obs').value.trim();
+  const {error}=await sb.rpc('finalizar_lead',{p_lead_id:finLeadId,p_status:finStatus,p_observacao:obs||null});
+  if(error){alert('Erro: '+error.message);return;}
+  fecharFinalizar();
+  await load();
+}
+async function confirmarReabrir(id){
+  if(!confirm('Reabrir este lead? Ele volta para "em andamento".'))return;
+  const pin=prompt("Senha admin:");
+  if(pin===null)return;
+  const {error}=await sb.rpc('reabrir_lead',{p_lead_id:id,p_senha:pin.trim()});
   if(error){alert(error.message.includes('SENHA_INCORRETA')?'Senha incorreta.':error.message);return;}
   await load();
 }
